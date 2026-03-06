@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>泰安医院冷量与电费计算器</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Microsoft YaHei", sans-serif; }
+        body { background: #f5f7fa; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 20px; }
+        .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .card h2 { font-size: 18px; color: #34495e; margin-bottom: 20px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+        .input-group { display: flex; flex-direction: column; }
+        .input-group label { font-size: 14px; color: #666; margin-bottom: 5px; }
+        .input-group input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .btn { background: #3498db; color: white; border: none; padding: 12px 30px; font-size: 16px; border-radius: 6px; cursor: pointer; display: block; margin: 30px auto; transition: background 0.3s; }
+        .btn:hover { background: #2980b9; }
+        .results { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; }
+        .result-item { flex: 1; min-width: 200px; text-align: center; padding: 20px; background: #ecf0f1; border-radius: 8px; }
+        .result-item .value { font-size: 32px; font-weight: bold; color: #2c3e50; margin: 10px 0; }
+        #chart-container { height: 400px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>泰安27000㎡医院冷量与电费计算器</h1>
+
+        <!-- 1. 建筑基本参数 -->
+        <div class="card">
+            <h2>1. 建筑基本参数</h2>
+            <div class="grid">
+                <div class="input-group"><label>总建筑面积 (㎡)</label><input type="number" id="total-area" value="27000"></div>
+                <div class="input-group"><label>外墙总面积 (㎡)</label><input type="number" id="wall-area" value="12600"></div>
+                <div class="input-group"><label>屋面总面积 (㎡)</label><input type="number" id="roof-area" value="4500"></div>
+                <div class="input-group"><label>外窗总面积 (㎡)</label><input type="number" id="window-area" value="5040"></div>
+            </div>
+        </div>
+
+        <!-- 2. 围护结构参数 -->
+        <div class="card">
+            <h2>2. 围护结构参数</h2>
+            <div class="grid">
+                <div class="input-group"><label>外墙传热系数 (W/(㎡·K))</label><input type="number" id="wall-u" value="0.6" step="0.01"></div>
+                <div class="input-group"><label>屋面传热系数 (W/(㎡·K))</label><input type="number" id="roof-u" value="0.45" step="0.01"></div>
+                <div class="input-group"><label>外窗传热系数 (W/(㎡·K))</label><input type="number" id="window-u" value="2.4" step="0.01"></div>
+                <div class="input-group"><label>外窗遮阳系数 (SHGC)</label><input type="number" id="window-shgc" value="0.55" step="0.01"></div>
+                <div class="input-group"><label>空气渗透换气次数 (次/h)</label><input type="number" id="infiltration" value="0.5" step="0.1"></div>
+            </div>
+        </div>
+
+        <!-- 3. 室内环境与内热源 -->
+        <div class="card">
+            <h2>3. 室内环境与内热源</h2>
+            <div class="grid">
+                <div class="input-group"><label>夏季制冷设定温度 (℃)</label><input type="number" id="cooling-setpoint" value="26" step="1"></div>
+                <div class="input-group"><label>总人数</label><input type="number" id="total-people" value="4050" step="10"></div>
+                <div class="input-group"><label>人均显热 (W)</label><input type="number" id="sensible-per-person" value="105" step="1"></div>
+                <div class="input-group"><label>人均潜热 (W)</label><input type="number" id="latent-per-person" value="45" step="1"></div>
+                <div class="input-group"><label>总照明负荷 (W)</label><input type="number" id="total-lighting" value="405000" step="1000"></div>
+                <div class="input-group"><label>总设备负荷 (W)</label><input type="number" id="total-equipment" value="810000" step="1000"></div>
+                <div class="input-group"><label>人均新风量 (m³/(h·人))</label><input type="number" id="outdoor-air" value="25" step="1"></div>
+            </div>
+        </div>
+
+        <!-- 4. 电价参数 -->
+        <div class="card">
+            <h2>4. 泰安商业电价参数</h2>
+            <div class="grid">
+                <div class="input-group"><label>峰段电价 (元/kWh) 8:00-22:00</label><input type="number" id="peak-price" value="0.85" step="0.01"></div>
+                <div class="input-group"><label>谷段电价 (元/kWh) 22:00-8:00</label><input type="number" id="valley-price" value="0.55" step="0.01"></div>
+            </div>
+        </div>
+
+        <button class="btn" onclick="calculate()">开始计算</button>
+
+        <!-- 结果显示 -->
+        <div class="card" id="results-card" style="display: none;">
+            <h2>计算结果</h2>
+            <div class="results">
+                <div class="result-item">
+                    <div class="label">峰值设计冷量</div>
+                    <div class="value" id="peak-cooling">-</div>
+                    <div class="unit">kW</div>
+                </div>
+                <div class="result-item">
+                    <div class="label">供冷期累计总冷量</div>
+                    <div class="value" id="total-cooling">-</div>
+                    <div class="unit">kWh</div>
+                </div>
+                <div class="result-item">
+                    <div class="label">供冷期空调总电费</div>
+                    <div class="value" id="total-cost">-</div>
+                    <div class="unit">元</div>
+                </div>
+            </div>
+            <div id="chart-container"><canvas id="cooling-chart"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+        let coolingChart = null;
+
+        // 读取同目录下的 tai_an_weather.json
+        async function loadWeatherData() {
+            try {
+                const response = await fetch('./tai_an_weather.json');
+                if (!response.ok) throw new Error('未找到气象文件');
+                return await response.json();
+            } catch (error) {
+                alert('请确保 tai_an_weather.json 和 index.html 在同一个文件夹里！\n\n错误信息：' + error.message);
+                return null;
+            }
+        }
+
+        // 读取输入值的辅助函数
+        function getVal(id) { return parseFloat(document.getElementById(id).value); }
+
+        // 核心计算函数
+        async function calculate() {
+            const weatherData = await loadWeatherData();
+            if (!weatherData) return;
+
+            // 1. 读取所有网页输入的参数
+            const params = {
+                // 建筑基本
+                total_area: getVal('total-area'),
+                wall_area: getVal('wall-area'),
+                roof_area: getVal('roof-area'),
+                window_area: getVal('window-area'),
+                // 围护结构
+                wall_u: getVal('wall-u'),
+                roof_u: getVal('roof-u'),
+                window_u: getVal('window-u'),
+                window_shgc: getVal('window-shgc'),
+                infiltration_ach: getVal('infiltration'),
+                // 室内环境与内热源
+                cooling_setpoint: getVal('cooling-setpoint'),
+                total_people: getVal('total-people'),
+                sensible_per_person: getVal('sensible-per-person'),
+                latent_per_person: getVal('latent-per-person'),
+                total_lighting: getVal('total-lighting'),
+                total_equipment: getVal('total-equipment'),
+                outdoor_air_per_person: getVal('outdoor-air'),
+                // 电价
+                peak_price: getVal('peak-price'),
+                valley_price: getVal('valley-price')
+            };
+
+            const totalCoolingList = [];
+            const labelList = [];
+
+            // 2. 逐时冷负荷计算
+            for (let i = 0; i < weatherData.length; i++) {
+                const [hour, dryBulb, solar] = weatherData[i];
+                labelList.push(`第${i+1}小时`);
+
+                // 作息系数：8:00-18:00满负荷(1)，其余30%
+                let schedule = (hour >= 8 && hour < 18) ? 1 : 0.3;
+
+                // 2.1 围护结构传热得热 (W)
+                let wallGain = params.wall_u * params.wall_area * (dryBulb - params.cooling_setpoint);
+                let roofGain = params.roof_u * params.roof_area * (dryBulb - params.cooling_setpoint);
+                let windowGain = params.window_u * params.window_area * (dryBulb - params.cooling_setpoint);
+                let envelopeGain = Math.max(0, wallGain + roofGain + windowGain); // 负得热按0算
+
+                // 2.2 太阳辐射得热 (W)
+                const solarGain = params.window_shgc * params.window_area * solar;
+
+                // 2.3 内热源得热 (W)
+                const peopleGain = (params.sensible_per_person + params.latent_per_person) * params.total_people * schedule;
+                const lightingGain = params.total_lighting * schedule;
+                const equipmentGain = params.total_equipment * schedule;
+                const internalGain = peopleGain + lightingGain + equipmentGain;
+
+                // 2.4 新风冷负荷 (W)
+                const airDensity = 1.2; // 空气密度 (kg/m³)
+                const airSpecificHeat = 1.01; // 空气定压比热容 (kJ/(kg·K))
+                const outdoorAirVolume = params.outdoor_air_per_person * params.total_people; // 总新风量 (m³/h)
+                let ventGain = (outdoorAirVolume / 3600) * airDensity * 1000 * airSpecificHeat * (dryBulb - params.cooling_setpoint);
+                ventGain = Math.max(0, ventGain);
+
+                // 总冷负荷 (kW)
+                const totalLoad = (envelopeGain + solarGain + internalGain + ventGain) / 1000;
+                totalCoolingList.push(totalLoad);
+            }
+
+            // 3. 计算核心结果
+            const peakCooling = Math.max(...totalCoolingList);
+            const totalCooling = totalCoolingList.reduce((a, b) => a + b, 0);
+
+            // 4. 计算电费
+            let totalCost = 0;
+            for (let i = 0; i < weatherData.length; i++) {
+                const hour = weatherData[i][0];
+                const price = (hour >= 8 && hour < 22) ? params.peak_price : params.valley_price;
+                totalCost += totalCoolingList[i] * price;
+            }
+
+            // 5. 显示结果
+            document.getElementById('results-card').style.display = 'block';
+            document.getElementById('peak-cooling').textContent = peakCooling.toFixed(0);
+            document.getElementById('total-cooling').textContent = totalCooling.toFixed(0);
+            document.getElementById('total-cost').textContent = totalCost.toFixed(0);
+
+            // 6. 绘制交互式图表
+            const ctx = document.getElementById('cooling-chart').getContext('2d');
+            if (coolingChart) coolingChart.destroy();
+            coolingChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labelList,
+                    datasets: [{
+                        label: '逐时总冷负荷 (kW)',
+                        data: totalCoolingList,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 20 }, title: { display: true, text: '供冷期小时数' } },
+                        y: { beginAtZero: true, title: { display: true, text: '逐时冷负荷 (kW)' } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
